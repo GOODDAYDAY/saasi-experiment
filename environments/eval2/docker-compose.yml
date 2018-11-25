@@ -33,7 +33,7 @@ services:
       resources:
         limits:
           cpus: '0.40'
-          memory: 512M
+          memory: 256M
         reservations:
           cpus: '0.20'
           memory: 256M
@@ -79,7 +79,7 @@ services:
       resources:
         limits:
           cpus: '0.40'
-          memory: 512M
+          memory: 256M
         reservations:
           cpus: '0.20'
           memory: 256M
@@ -121,7 +121,7 @@ services:
       resources:
         limits:
           cpus: '0.40'
-          memory: 512M
+          memory: 256M
         reservations:
           cpus: '0.20'
           memory: 256M
