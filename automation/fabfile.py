@@ -1,317 +1,1665 @@
-# This file is intended for use with "docker stack"
-# Might not work with docker-compose
+from fabric.api import env, run, roles, cd, reboot, settings, parallel, execute, local, get
 
-version: '3.3'
+import requests
 
-services:
-  business_web_1:
-    image: regserv:5000/business_web
-    labels:
-      saasi.microservices.type: "business"
-      saasi.group: 'workload'
- #     - "traefik.backend.healthcheck.path=/api/status"
- #     - "traefik.backend.healthcheck.interval=1s"
- #     - "traefik.backend.healthcheck.port=80"
- #     - "traefik.backend.circuitbreaker.expression=ResponseCodeRatio(400, 600, 0, 600)>0.1"
-    deploy:
-      labels:
-        saasi.microservices.type: "business"
-        traefik.backend: bms1
-        traefik.docker.network: "eval2_appnet"
-        traefik.port: 80
-        traefik.frontend.rule: "Query: operationId={operationId:[0-1]+}"
-        traefik.enable: "true"
-#        traefik.backend.circuitbreaker.expression: "ResponseCodeRatio(400, 600, 0, 600)>0.1"
-#        traefik.backend.healthcheck.path: "/api/status"
-#        traefik.backend.healthcheck.interval: "1s"
-#        traefik.backend.healthcheck.port: "80"
-      replicas: 1
-      placement:
-        constraints: [node.role != manager]
-      restart_policy:
-        condition: any
-      resources:
-        limits:
-          cpus: '0.40'
-          memory: 512M
-        reservations:
-          cpus: '0.20'
-          memory: 256M
-    networks:
-      - appnet
-    logging:
-      driver: "fluentd"
-      options:
-        fluentd-address: localhost:24224
-        fluentd-async-connect: 
-        tag: microservice.business.web1
+import time
 
-  business_web_2:
-    image: regserv:5000/business_web
-    labels:
-      saasi.microservices.type: "business"
-      saasi.group: 'workload'
-#      - "traefik.backend.healthcheck.path=/api/status"
-#      - "traefik.backend.healthcheck.interval=1s"
-#      - "traefik.backend.healthcheck.port=80"
-#      - "traefik.backend.circuitbreaker.expression=ResponseCodeRatio(400, 600, 0, 600)>0.1"
-    deploy:
-      labels:
-        saasi.microservices.type: "business"
-        traefik.backend: bms2
-        traefik.docker.network: "eval2_appnet"
-        traefik.port: 80
-        traefik.frontend.rule: "Query: operationId={operationId:[2-3]+}"
-        traefik.enable: "true"
-#        traefik.backend.circuitbreaker.expression: "ResponseCodeRatio(400, 600, 0, 600)>0.1"
-#        traefik.backend.healthcheck.path: "/api/status"
-#        traefik.backend.healthcheck.interval: "1s"
-#        traefik.backend.healthcheck.port: "80"
-      replicas: 1
-      placement:
-        constraints: [node.role != manager]
-      restart_policy:
-        condition: any
-      resources:
-        limits:
-          cpus: '0.40'
-          memory: 512M
-        reservations:
-          cpus: '0.20'
-          memory: 256M
-    networks:
-      - appnet
-    logging:
-      driver: "fluentd"
-      options:
-        fluentd-address: localhost:24224
-        fluentd-async-connect: 
-        tag: microservice.business.web2
+from datetime import datetime
 
-  business_web_3:
-    image: regserv:5000/business_web
-    labels:
-      saasi.microservices.type: "business"
-      saasi.group: 'workload'
-#      - "traefik.backend.healthcheck.path=/api/status"
-#      - "traefik.backend.healthcheck.interval=1s"
-#      - "traefik.backend.healthcheck.port=80"
-#      - "traefik.backend.circuitbreaker.expression=ResponseCodeRatio(400, 600, 0, 600)>0.1"
-    deploy:
-      labels:
-        saasi.microservices.type: "business"
-        traefik.backend: bms3
-        traefik.docker.network: "eval2_appnet"
-        traefik.port: 80
-        traefik.frontend.rule: "Query: operationId={operationId:[4-5]+}"
-        traefik.enable: "true"
-#        traefik.backend.circuitbreaker.expression: "ResponseCodeRatio(400, 600, 0, 600)>0.1"
-#        traefik.backend.healthcheck.path: "/api/status"
-#        traefik.backend.healthcheck.interval: "1s"
-#        traefik.backend.healthcheck.port: "80"
-      replicas: 1
-      placement:
-        constraints: [node.role != manager]
-      restart_policy:
-        condition: any
-      resources:
-        limits:
-          cpus: '0.40'
-          memory: 512M
-        reservations:
-          cpus: '0.20'
-          memory: 256M
-    networks:
-      - appnet
-    logging:
-      driver: "fluentd"
-      options:
-        fluentd-address: localhost:24224
-        fluentd-async-connect: 
-        tag: microservice.business.web3
+from string import Template
 
-  # Monitoring Components
+import math
 
-  visualizer:
-    image: dockersamples/visualizer:stable
-    labels:
-      saasi.group: 'controller'
-    ports: 
-     - "5009:8080"
-    volumes:
-     - "/var/run/docker.sock:/var/run/docker.sock"
-    deploy:
-      placement:
-        constraints: [node.role == manager]
-    networks:
-     - appnet
+import json
 
-  cadvisor:
-    image: google/cadvisor:latest
-    labels:
-      saasi.group: 'controller'
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock:ro
-      - /:/rootfs:ro
-      - /var/run:/var/run
-      - /sys:/sys:ro
-      - /var/lib/docker/:/var/lib/docker:ro
-    ports:
-      - "8088:8080"
-    deploy:
-      mode: global
-      restart_policy:
-        condition: on-failure
-    networks:
-      - appnet
+import socket
 
-  prometheus:
-    image: regserv:5000/prometheus:latest
-    labels:
-      saasi.group: 'controller'
-    ports:
-      - "9090:9090"
-    deploy:
-      placement:
-        constraints: [node.role == manager]
-      mode: replicated
-      replicas: 1
-      restart_policy:
-        condition: on-failure
-    networks:
-      - appnet
+import os
 
-  grafana:
-    image: regserv:5000/grafana:latest
-    labels:
-      saasi.group: 'controller'
-    ports:
-      - "3000:3000"
-    networks:
-      - appnet
-    environment:
-      - GF_SECURITY_ADMIN_USER=${ADMIN_USER:-admin}
-      - GF_SECURITY_ADMIN_PASSWORD=${ADMIN_PASSWORD:-admin}
-      - GF_USERS_ALLOW_SIGN_UP=false
-    deploy:
-      mode: replicated
-      replicas: 1
-      placement:
-        constraints:
-          - node.role == manager
-      resources:
-        limits:
-          memory: 128M
-        reservations:
-          memory: 64M
 
-  swarm-exporter:
-    image: regserv:5000/docker-swarm-exporter:latest
-    labels:
-      saasi.group: 'controller'
-    deploy:
-      mode: replicated
-      replicas: 1
-      placement:
-        constraints:
-          - node.role == manager
-    ports:
-      - "5051:5051"
-    networks:
-      - appnet
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock:ro
 
-  autoscaler:
-    image: regserv:5000/autoscaler:latest
-    labels:
-      saasi.group: 'controller'
-    deploy:
-      mode: replicated
-      replicas: 1
-      placement:
-        constraints:
-          - node.role == manager
-    environment:
-      - AUTOSCALER_PROM_HOST=http://tasks.prometheus:9090
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock:ro
-    networks:
-      - appnet
-#    logging:
-#      driver: "fluentd"
-#      options:
-#        fluentd-address: localhost:24224
-#        fluentd-async-connect:
-#        tag: controller.autoscaler
+# Change this
 
-  fluentd:
-    image: regserv:5000/fluentd:latest
-    labels:
-      saasi.group: 'controller'
-    deploy: 
-      mode: replicated
-      replicas: 1
-      placement:
-        constraints:
-          - node.role == manager
-    ports:
-      - "24224:24224"
-      - "24224:24224/udp"
-    networks:
-      - appnet
+# from 
 
-  elasticsearch:
-    image: elasticsearch
-    labels:
-      saasi.group: 'controller'
-    deploy: 
-      mode: replicated
-      replicas: 1
-      placement:
-        constraints:
-          - node.role == manager
-    ports:
-      - "9200:9200"
-    networks:
-      - appnet
+# set_trace() 
 
-  kibana:
-    labels:
-      saasi.group: 'controller'
-    image: kibana
-    deploy: 
-      mode: replicated
-      replicas: 1
-      placement:
-        constraints:
-          - node.role == manager
-    ports:
-      - "5601:5601"
-    networks:
-      - appnet
+OUTPUT_PATH = '~/saasi-data/users-$users-req-$requests-$ts-$type'
 
-  traefik:
-    image: regserv:5000/traefik:latest
-    command: traefik \
-             --docker \
-             --docker.swarmmode \
-             --docker.domain=saasi \
-             --docker.watch \
-             --web
-    ports:
-      - "8080:8080"
-      - "80:80"
-    networks:
-      - appnet
-    deploy:
-      mode: replicated
-      placement:
-        constraints:
-          - node.role == manager
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock:ro
 
-networks: # Overlay network 
-  appnet: # Network for the microservices
-  controlnet: # Network for the controllers
+
+# env.user = 'root'
+
+# set password
+
+env.user = 'webdep'
+
+env.password = 'a1cf@f627'
+
+# env.roledefs = {
+
+#     'manager': ['manager-01'],
+
+#     'othermanagers': ['manager-02', 'manager-03'],
+
+#     'worker': [
+
+#         'worker-01', 'worker-02', 'worker-03', 'worker-04', 'worker-05',
+
+#         'worker-06', 'worker-07', 'worker-08', 'worker-09', 'worker-10'
+
+#     ],
+
+#     'loadgen': ['regserv']
+
+# }
+
+
+
+env.roledefs = {
+
+    'manager': ['manager-01'],
+
+    'othermanagers': ['manager-01'],
+
+    'worker': [
+
+        'manager-02'
+
+    ],
+
+    'loadgen': ['regserv']
+
+}
+
+
+
+
+
+class PrometheusClient(object):
+
+    def __init__(self, endpoint="http://manager-01:9090"):
+
+        self._endpoint = endpoint
+
+    
+
+    def GetInstantValue(self, queryString):
+
+        '''
+
+            Get an instant value from Prometheus.
+
+            It is the caller's responsibility to ensure
+
+            the query returns an instant.
+
+        '''
+
+        r = requests.get(self._endpoint + '/api/v1/query', params={'query': queryString})
+
+        r = r.json()
+
+        if r['status'] != 'success':
+
+            return [0,float('nan')]
+
+        else:
+
+            try:
+
+                resultTimestamp = r['data']['result'][0]
+
+                resultValue = r['data']['result'][1] 
+
+                return [resultTimestamp, resultValue]
+
+            except Exception:
+
+                return [0,float('nan')]
+
+
+
+class ElasticSearchClient(object):
+
+    def __init__(self, endpoint="http://manager-01:9200"):
+
+        self._endpoint = endpoint
+
+    
+
+    def GetCount(self, queryString):
+
+        '''
+
+            Get an instant value from Prometheus.
+
+            It is the caller's responsibility to ensure
+
+            the query returns an instant.
+
+        '''
+
+        r = requests.get(self._endpoint + '/fluentd-*/_search', params={'q': queryString})
+
+        r = r.json()
+
+        print(json.dumps(r))
+
+        return r['hits']['total']
+
+        
+
+
+
+prom = PrometheusClient()
+
+elst = ElasticSearchClient()
+
+
+
+@roles('loadgen')
+
+def start_load_eval1(userCount, requestsToRun):
+
+    with settings(warn_only=True):
+
+        with cd('~/saasi-experiment/environments/eval1'):
+
+        #from ipdb import set_trace;set_trace() 
+
+            timesToRun=requestsToRun/5
+
+            run('locust --host=http://172.18.8.245:8080/api --no-web -r 5 -c '+str(userCount)+' -t '+str(timesToRun))
+
+
+
+
+
+@roles('loadgen')
+
+def start_load_eval2(userCount, requestsToRun):
+
+    with settings(warn_only=True):
+
+        with cd('~/saasi-experiment/environments/eval2'):
+
+	    #from ipdb import set_trace;set_trace() 
+
+            timesToRun=requestsToRun/5
+
+            run('locust --host=http://172.18.8.245:80/api --no-web -r 5 -c '+str(userCount)+' -t '+str(timesToRun))
+
+
+
+
+
+@roles('loadgen')
+
+def start_load_eval3(userCount, requestsToRun):
+
+    with settings(warn_only=True):
+
+        with cd('~/saasi-experiment/environments/eval3'):
+
+        #from ipdb import set_trace;set_trace() 
+
+            timesToRun=requestsToRun/5
+
+            run('locust --host=http://172.18.8.245:80/api --no-web -r 5 -c '+str(userCount)+' -t '+str(timesToRun))
+
+
+
+
+
+@roles('loadgen')
+
+def clean_load():
+
+    with settings(warn_only=True):
+
+        run('pkill -f -SIGKILL locust')
+
+
+
+@roles('manager')
+
+def clean_stack():
+
+    run('docker stack rm eval1')
+
+    run('docker stack rm eval2')
+
+    run('docker stack rm eval3')
+
+
+
+@roles('manager')
+
+def build_stack_eval1():
+
+    with cd('~/saasi-experiment/environments/eval1'):
+
+        run('./build.sh')
+
+        run('./push_to_registry.sh')
+
+
+
+@roles('manager')
+
+def build_stack_eval2():
+
+    with cd('~/saasi-experiment/environments/eval2'):
+
+        run('./build.sh')
+
+        run('./push_to_registry.sh')
+
+
+
+@roles('manager')
+
+def build_stack_eval3():
+
+    with cd('~/saasi-experiment/environments/eval3'):
+
+        run('./build.sh')
+
+        run('./push_to_registry.sh')
+
+
+
+@roles('manager')
+
+def deploy_stack_eval1():
+
+    with cd('~/saasi-experiment/environments/eval1'):
+
+        run('docker stack deploy -c docker-compose.yml eval1')
+
+
+
+@roles('manager')
+
+def deploy_stack_eval2():
+
+    with cd('~/saasi-experiment/environments/eval2'):
+
+        run('docker stack deploy -c docker-compose.yml eval2')
+
+
+
+@roles('manager')
+
+def deploy_stack_eval3():
+
+    with cd('~/saasi-experiment/environments/eval3'):
+
+        run('docker stack deploy -c docker-compose.yml eval3')
+
+
+
+@parallel
+
+@roles('worker')
+
+def restart_workers():
+
+    with settings(warn_only=True):
+
+        # reboot(use_sudo=False)
+
+        reboot(use_sudo=True)
+
+
+
+
+
+@roles('othermanagers')
+
+def restart_othermanagers():
+
+    with settings(warn_only=True):
+
+        reboot(use_sudo=True)
+
+
+
+@parallel
+
+@roles('manager')
+
+def restart_cheifmanager():
+
+    with settings(warn_only=True):
+
+        reboot(use_sudo=True)
+
+
+
+
+
+def restart_cluster():
+
+    execute(restart_othermanagers)
+
+    execute(restart_workers)
+
+    execute(restart_cheifmanager)
+
+
+
+def ensure_servers_running():
+
+    pass
+
+
+
+def ensure_deployed():
+
+    pass
+
+
+
+def test_elasticsearch():
+
+    try:
+
+        r = requests.get('http://manager-01:9200/_cat/health', params={'h': 'status'})
+
+    except Exception as e:
+
+        return False
+
+    return r.content.strip() in ['green','yellow']
+
+
+
+def test_business_web():
+
+    try:
+
+        r = requests.get('http://manager-01:8080/api/status')
+
+    except Exception as e:
+
+        return False
+
+    return r.content.strip() == "OK"
+
+
+
+def test_business_web_eval2():
+
+    try:
+
+        r1 = requests.get('http://manager-01:80/api/status?operationId=0')
+
+        r2 = requests.get('http://manager-01:80/api/status?operationId=2')
+
+        r3 = requests.get('http://manager-01:80/api/status?operationId=4')
+
+    except Exception as e:
+
+        return False
+
+    return r1.content.strip() == "OK" and r2.content.strip() == "OK" and r3.content.strip() == "OK"
+
+
+
+def test_business_microservice():
+
+    try:
+
+        r = requests.get('http://manager-01:80/api/status')
+
+    except Exception as e:
+
+        return False
+
+    return r.content.strip() == "OK"
+
+
+
+def ensure_elasticsearch_healthy():
+
+    while test_elasticsearch()!=True:
+
+        print('Waiting for Elasticsearch')
+
+        time.sleep(3)
+
+        pass
+
+    print('ElasticSearch OK!')
+
+
+
+def ensure_business_web_healthy():
+
+    while test_business_web()!=True:
+
+        print('Waiting for Business Web')
+
+        time.sleep(3)
+
+        pass
+
+    print('Business Web OK!')
+
+
+
+def ensure_business_web_healthy_eval2():
+
+    while test_business_web_eval2()!=True:
+
+        print('Waiting for Business Web 1 2 3')
+
+        time.sleep(3)
+
+        pass
+
+    print('Business Web 1 2 3 OK!')
+
+
+
+def ensure_business_microservice_healthy():
+
+    while test_business_microservice()!=True:
+
+        print('Waiting for Business Microservice')
+
+        time.sleep(3)
+
+        pass
+
+    print('Business Microservice OK!')
+
+
+
+@roles('manager')
+
+def export_data_eval1(timespan, outputPath):
+
+    with cd('~/saasi-experiment/environments/eval1'):
+
+        run('./export_data_csv.sh '+timespan+' ~/data')
+
+        run('./export_data_gnuplot.sh '+timespan+' ~/data')
+
+        run('./export_data_matplotlib.sh '+timespan+' ~/data')
+
+    get('~/data', outputPath)
+
+
+
+@roles('manager')
+
+def export_data_eval2(timespan, outputPath):
+
+    with cd('~/saasi-experiment/environments/eval2'):
+
+        run('./export_data_csv.sh '+timespan+' ~/data')
+
+        run('./export_data_gnuplot.sh '+timespan+' ~/data')
+
+        run('./export_data_matplotlib.sh '+timespan+' ~/data')
+
+    get('~/data', outputPath)
+
+
+
+@roles('manager')
+
+def export_data_eval3(timespan, outputPath):
+
+    with cd('~/saasi-experiment/environments/eval3'):
+
+        run('./export_data_csv.sh '+timespan+' ~/data')
+
+        run('./export_data_gnuplot.sh '+timespan+' ~/data')
+
+        run('./export_data_matplotlib.sh '+timespan+' ~/data')
+
+    get('~/data', outputPath)
+
+
+
+def run_eval1(users='10',reqs='20'):
+
+    requestsInt = int(reqs)
+
+    usersInt = int(users)
+
+    print("="*20)
+
+    print('Evaluation 1, '+str(usersInt)+' users run for '+str(requestsInt)+ ' requests')
+
+    print("="*20)
+
+    outputPath = Template(OUTPUT_PATH).substitute({'users': users, 'requests': reqs, 'ts':datetime.now().strftime('%d%H%M%S'), 'type': 'eval1'})
+
+    local("mkdir "+outputPath)
+
+
+
+    execute(clean_load)
+
+    retry = True
+
+    while (retry):
+
+        try:
+
+            execute(clean_stack)
+
+            execute(deploy_stack_eval1)
+
+            retry = False
+
+        except SystemExit:
+
+            print('Retrying')
+
+            retry = True
+
+
+
+    ensure_elasticsearch_healthy()
+
+    ensure_business_web_healthy()
+
+
+
+    startTime = datetime.now()
+
+    execute(start_load_eval1,userCount=usersInt, requestsToRun=requestsInt)
+
+    execute(clean_load)
+
+    # wait for the cluster to chill off
+
+    while True:
+
+        try:
+
+            s = prom.GetInstantValue("scalar(sum(bms_active_transactions))")[1]
+
+            print(s)
+
+            p = int(s)
+
+        except:
+
+            p = 0
+
+        if p<5:
+
+            break
+
+        print("Still",p,"requests running... Waiting for them to finish")
+
+        time.sleep(10)
+
+
+
+    endTime = datetime.now()
+
+    timeSpent = endTime - startTime
+
+    minutesSpent = int(math.ceil(timeSpent.seconds/60.0))
+
+    print("From "+str(startTime)+' to '+str(endTime)+', thats '+str(minutesSpent)+' minutes.')
+
+    # collect data
+
+    result = collect_data_eval1(minutesSpent)
+
+
+
+    print(result)
+
+    mkdir(outputPath)
+
+    with open(outputPath+'/data.json', 'w') as outfile:
+
+        json.dump(result, outfile, sort_keys=True, indent=4)
+
+
+
+    execute(export_data_eval1, str(minutesSpent)+'m', outputPath)
+
+    
+
+    execute(clean_stack)
+
+    execute(restart_cluster)
+
+
+
+def mkdir(path):
+
+        #from ipdb import set_trace;set_trace()
+
+        #path = os.getcwd()+'/'+path;
+
+        folder = os.path.exists(path)
+
+        if not folder:                   
+
+                os.makedirs(path)            
+
+                print("---  new folder...  ---")
+
+                print("---  OK  ---")
+
+        else:
+
+                print("---  There is this folder!  ---")
+
+
+
+def run_eval2(users='10',reqs='20'):
+
+    #from 
+
+    requestsInt = int(reqs)
+
+    usersInt = int(users)
+
+    print("="*20)
+
+    print('Evaluation 2, '+str(usersInt)+' users run for '+str(requestsInt)+ ' requests')
+
+    print("="*20)
+
+    outputPath = Template(OUTPUT_PATH).substitute({'users': users, 'requests': reqs, 'ts':datetime.now().strftime('%d%H%M%S'), 'type': 'eval2'})
+
+    local("mkdir "+outputPath)
+
+
+
+    execute(clean_load)
+
+    retry = True
+
+    while (retry):
+
+        try:
+
+            execute(clean_stack)
+
+            execute(deploy_stack_eval2)
+
+            retry = False
+
+        except SystemExit:
+
+            print('Retrying')
+
+            retry = True
+
+
+
+    ensure_elasticsearch_healthy()
+
+    ensure_business_web_healthy_eval2()
+
+
+
+    startTime = datetime.now()
+
+    execute(start_load_eval2, userCount=usersInt, requestsToRun=requestsInt)
+
+    execute(clean_load)
+
+    # wait for the cluster to chill off
+
+    while True:
+
+        try:
+
+            s = prom.GetInstantValue("scalar(sum(bms_active_transactions))")[1]
+
+            print(s)
+
+            p = int(s)
+
+        except:
+
+            p = 0
+
+        if p<5:
+
+            break
+
+        print("Still",p,"requests running... Waiting for them to finish")
+
+        time.sleep(10)
+
+
+
+    endTime = datetime.now()
+
+    timeSpent = endTime - startTime
+
+    minutesSpent = int(math.ceil(timeSpent.seconds/60.0))
+
+    print("From "+str(startTime)+' to '+str(endTime)+', thats '+str(minutesSpent)+' minutes.')
+
+    # collect data
+
+    result = collect_data_eval2(minutesSpent) # same as 3
+
+
+
+    print(result)
+
+    mkdir(outputPath)
+
+    with open(outputPath+'/data.json', 'w') as outfile:
+
+        json.dump(result, outfile, sort_keys=True, indent=4)
+
+
+
+    execute(export_data_eval2, str(minutesSpent)+'m', outputPath)
+
+    
+
+    execute(clean_stack)
+
+    execute(restart_cluster)
+
+
+
+def run_eval3(users='10',reqs='20'):
+
+    requestsInt = int(reqs)
+
+    usersInt = int(users)
+
+    print("="*20)
+
+    print('Evaluation 3, '+str(usersInt)+' users run for '+str(requestsInt)+ ' requests')
+
+    print("="*20)
+
+    outputPath = Template(OUTPUT_PATH).substitute({'users': users, 'requests': reqs, 'ts':datetime.now().strftime('%d%H%M%S'), 'type': 'eval3'})
+
+    local("mkdir "+outputPath)
+
+
+
+    execute(clean_load)
+
+    retry = True
+
+    while (retry):
+
+        try:
+
+            execute(clean_stack)
+
+            execute(deploy_stack_eval3)
+
+            retry = False
+
+        except SystemExit:
+
+            print('Retrying')
+
+            retry = True
+
+
+
+    ensure_elasticsearch_healthy()
+
+    ensure_business_microservice_healthy()
+
+
+
+    startTime = datetime.now()
+
+    execute(start_load_eval3, userCount=usersInt, requestsToRun=requestsInt)
+
+    execute(clean_load)
+
+    # wait for the cluster to chill off
+
+    while True:
+
+        try:
+
+            s = prom.GetInstantValue("scalar(sum(bms_active_transactions))")[1]
+
+            print(s)
+
+            p = int(s)
+
+        except:
+
+            p = 0
+
+        if p<5:
+
+            break
+
+        print("Still",p,"requests running... Waiting for them to finish")
+
+        time.sleep(10)
+
+
+
+    endTime = datetime.now()
+
+    timeSpent = endTime - startTime
+
+    minutesSpent = int(math.ceil(timeSpent.seconds/60.0))
+
+    print("From "+str(startTime)+' to '+str(endTime)+', thats '+str(minutesSpent)+' minutes.')
+
+    # collect data
+
+    result = collect_data_eval3(minutesSpent)
+
+
+
+    print(result)
+
+    # add for eval3
+
+    mkdir(outputPath)
+
+    #with open(outputPath+'/data.json', 'w') as outfile:
+
+    with open(outputPath+'/data.json', 'a') as outfile:
+
+        json.dump(result, outfile, sort_keys=True, indent=4)
+
+
+
+    execute(export_data_eval3, str(minutesSpent)+'m', outputPath)
+
+    execute(clean_stack)
+
+    execute(restart_cluster)
+
+
+
+def collect_data_eval1(minutesSpent):
+
+    # COST
+
+    avg_scale = prom.GetInstantValue(Template("""
+
+        scalar(
+
+            avg_over_time(
+
+                docker_swarm_service_running_replicas{service_name=~\"\\\\w+_business_web\"}[$timespan]
+
+            )
+
+        )
+
+    """).substitute({'timespan': str(minutesSpent)+'m'}))[1]
+
+
+
+    max_scale = prom.GetInstantValue(Template("""
+
+        scalar(
+
+            max_over_time(
+
+                docker_swarm_service_running_replicas{service_name=~\"\\\\w+_business_web\"}[$timespan]
+
+            )
+
+        )
+
+    """).substitute({'timespan': str(minutesSpent)+'m'}))[1]
+
+
+
+    # UTILISATION
+
+    avg_cpu_per_container_per_microservice = prom.GetInstantValue(Template("""
+
+        scalar(
+
+            avg_over_time(microservice_cpu_average{container_label_com_docker_swarm_service_name=~\"\\\\w+_business_web\"}[$timespan])
+
+        )
+
+    """).substitute({'timespan': str(minutesSpent)+'m'}))[1]
+
+
+
+    avg_mem_per_container_per_microservice = prom.GetInstantValue(Template("""
+
+        scalar(
+
+            avg_over_time(microservice_memory_average{container_label_com_docker_swarm_service_name=~\"\\\\w+_business_web\"}[$timespan])
+
+        )
+
+    """).substitute({'timespan': str(minutesSpent)+'m'}))[1]
+
+
+
+    avg_network_in_per_container_per_microservice = prom.GetInstantValue(Template("""
+
+        scalar(
+
+            avg_over_time(microservice_network_io_in_average{container_label_com_docker_swarm_service_name=~\"\\\\w+_business_web\"}[$timespan])
+
+        )
+
+    """).substitute({'timespan': str(minutesSpent)+'m'}))[1]
+
+
+
+    avg_network_out_per_container_per_microservice = prom.GetInstantValue(Template("""
+
+        scalar(
+
+            avg_over_time(microservice_network_io_out_average{container_label_com_docker_swarm_service_name=~\"\\\\w+_business_web\"}[$timespan])
+
+        )
+
+    """).substitute({'timespan': str(minutesSpent)+'m'}))[1]
+
+
+
+    # OVERHEAD
+
+    workload_total_avg_cpu = prom.GetInstantValue(Template("""
+
+        scalar(
+
+            sum(
+
+                avg_over_time(container_cpu_total{container_label_saasi_group=~\"workload\"}[$timespan])
+
+            )
+
+        )
+
+    """).substitute({'timespan': str(minutesSpent)+'m'}))[1]
+
+
+
+    controller_total_avg_cpu = prom.GetInstantValue(Template("""
+
+        scalar(
+
+            sum(
+
+                avg_over_time(container_cpu_total{container_label_saasi_group=~\"controller\"}[$timespan])
+
+            )
+
+        )
+
+    """).substitute({'timespan': str(minutesSpent)+'m'}))[1]
+
+
+
+    workload_total_avg_mem = prom.GetInstantValue(Template("""
+
+        scalar(
+
+            sum(
+
+                avg_over_time(container_memory_total{container_label_saasi_group=~\"workload\"}[$timespan])
+
+            )
+
+        )
+
+    """).substitute({'timespan': str(minutesSpent)+'m'}))[1]
+
+
+
+    controller_total_avg_mem = prom.GetInstantValue(Template("""
+
+        scalar(
+
+            sum(
+
+                avg_over_time(container_memory_total{container_label_saasi_group=~\"controller\"}[$timespan])
+
+            )
+
+        )
+
+    """).substitute({'timespan': str(minutesSpent)+'m'}))[1]
+
+
+
+    workload_total_network_in = prom.GetInstantValue(Template("""
+
+        scalar(
+
+            sum(
+
+                increase(container_network_io_in_total{container_label_saasi_group=~\"workload\"}[$timespan])
+
+            )
+
+        )
+
+    """).substitute({'timespan': str(minutesSpent)+'m'}))[1]
+
+
+
+    workload_total_network_out = prom.GetInstantValue(Template("""
+
+        scalar(
+
+            sum(
+
+                increase(container_network_io_out_total{container_label_saasi_group=~\"workload\"}[$timespan])
+
+            )
+
+        )
+
+    """).substitute({'timespan': str(minutesSpent)+'m'}))[1]
+
+
+
+    controller_total_network_in = prom.GetInstantValue(Template("""
+
+        scalar(
+
+            sum(
+
+                increase(container_network_io_in_total{container_label_saasi_group=~\"controller\"}[$timespan])
+
+            )
+
+        )
+
+    """).substitute({'timespan': str(minutesSpent)+'m'}))[1]
+
+
+
+    controller_total_network_out = prom.GetInstantValue(Template("""
+
+        scalar(
+
+            sum(
+
+                increase(container_network_io_out_total{container_label_saasi_group=~\"controller\"}[$timespan])
+
+            )
+
+        )
+
+    """).substitute({'timespan': str(minutesSpent)+'m'}))[1]
+
+
+
+    business_requests_total = elst.GetCount("container_name: *business** AND log: *finished* AND log: Transcation")
+
+    business_violation_total = elst.GetCount("container_name: *business** AND log: *violation* AND log: Transcation")
+
+
+
+
+
+    return {
+
+        'MaxScale': max_scale,
+
+        'AvgScale': avg_scale,
+
+        'CpuAverage': avg_cpu_per_container_per_microservice,
+
+        'MemAverage': avg_mem_per_container_per_microservice,
+
+        'NetInAverage': avg_network_in_per_container_per_microservice,
+
+        'NetOutAverage': avg_network_out_per_container_per_microservice,
+
+        'WorkloadTotalCpu': workload_total_avg_cpu,
+
+        'WorkloadTotalMemory': workload_total_avg_mem,
+
+        'ControllerTotalCpu': controller_total_avg_cpu,
+
+        'ControllerTotalMemory': controller_total_avg_mem,
+
+        'WorkloadNetInTotal': workload_total_network_in,
+
+        'WorkloadNetOutTotal': workload_total_network_out,
+
+        'ControllerNetInTotal': controller_total_network_in,
+
+        'ControllerNetOutTotal': controller_total_network_out,
+
+        'TotalRequests': business_requests_total,
+
+        'TotalViolations': business_violation_total
+
+    }
+
+
+
+AVG_SCALE_MICROSERVICE = """
+
+    scalar(
+
+        avg_over_time(
+
+            docker_swarm_service_running_replicas{service_name=~\"\\\\w+_$msname\"}[$timespan]
+
+        )
+
+    )
+
+"""
+
+
+
+MAX_SCALE_MICROSERVICE = """
+
+        scalar(
+
+            max_over_time(
+
+                docker_swarm_service_running_replicas{service_name=~\"\\\\w+_$msname\"}[$timespan]
+
+            )
+
+        )
+
+"""
+
+
+
+AVG_CPU = """
+
+    scalar(
+
+        avg_over_time(microservice_cpu_average{container_label_com_docker_swarm_service_name=~\"\\\\w+_$msname\"}[$timespan])
+
+    )
+
+"""
+
+
+
+AVG_MEM = """
+
+    scalar(
+
+        avg_over_time(microservice_memory_average{container_label_com_docker_swarm_service_name=~\"\\\\w+_$msname\"}[$timespan])
+
+    )
+
+"""
+
+
+
+AVG_NET_IN = """
+
+    scalar(
+
+        avg_over_time(microservice_network_io_in_average{container_label_com_docker_swarm_service_name=~\"\\\\w+_$msname\"}[$timespan])
+
+    )
+
+"""
+
+
+
+AVG_NET_OUT = """
+
+    scalar(
+
+        avg_over_time(microservice_network_io_out_average{container_label_com_docker_swarm_service_name=~\"\\\\w+_$msname\"}[$timespan])
+
+    )
+
+"""
+
+
+
+def collect_data_eval2(minutesSpent):
+
+    # COST
+
+    avg_scale = {}
+
+    max_scale = {}
+
+    for service in ['business_web_1', 'business_web_2', 'business_web_3']:
+
+        avg_scale[service] = prom.GetInstantValue(Template(AVG_SCALE_MICROSERVICE).substitute({'msname': service,'timespan': str(minutesSpent)+'m'}))[1]
+
+        max_scale[service] = prom.GetInstantValue(Template(MAX_SCALE_MICROSERVICE).substitute({'msname': service, 'timespan': str(minutesSpent)+'m'}))[1]
+
+
+
+    # UTILISATION
+
+    avg_cpu_per_container_per_microservice = {}
+
+    avg_mem_per_container_per_microservice = {}
+
+    avg_network_in_per_container_per_microservice = {}
+
+    avg_network_out_per_container_per_microservice = {}
+
+
+
+    for service in ['business_web_1', 'business_web_2', 'business_web_3']:
+
+        avg_cpu_per_container_per_microservice[service] = prom.GetInstantValue(Template(AVG_CPU).substitute({'msname': service, 'timespan': str(minutesSpent)+'m'}))[1]
+
+        avg_mem_per_container_per_microservice[service] = prom.GetInstantValue(Template(AVG_MEM).substitute({'msname': service, 'timespan': str(minutesSpent)+'m'}))[1]
+
+        avg_network_in_per_container_per_microservice[service] = prom.GetInstantValue(Template(AVG_NET_IN).substitute({'msname': service, 'timespan': str(minutesSpent)+'m'}))[1]
+
+        avg_network_out_per_container_per_microservice[service] = prom.GetInstantValue(Template(AVG_NET_OUT).substitute({'msname': service, 'timespan': str(minutesSpent)+'m'}))[1]
+
+
+
+    # OVERHEAD
+
+    workload_total_avg_cpu = prom.GetInstantValue(Template("""
+
+        scalar(
+
+            sum(
+
+                avg_over_time(container_cpu_total{container_label_saasi_group=~\"workload\"}[$timespan])
+
+            )
+
+        )
+
+    """).substitute({'timespan': str(minutesSpent)+'m'}))[1]
+
+
+
+    controller_total_avg_cpu = prom.GetInstantValue(Template("""
+
+        scalar(
+
+            sum(
+
+                avg_over_time(container_cpu_total{container_label_saasi_group=~\"controller\"}[$timespan])
+
+            )
+
+        )
+
+    """).substitute({'timespan': str(minutesSpent)+'m'}))[1]
+
+
+
+    workload_total_avg_mem = prom.GetInstantValue(Template("""
+
+        scalar(
+
+            sum(
+
+                avg_over_time(container_memory_total{container_label_saasi_group=~\"workload\"}[$timespan])
+
+            )
+
+        )
+
+    """).substitute({'timespan': str(minutesSpent)+'m'}))[1]
+
+
+
+    controller_total_avg_mem = prom.GetInstantValue(Template("""
+
+        scalar(
+
+            sum(
+
+                avg_over_time(container_memory_total{container_label_saasi_group=~\"controller\"}[$timespan])
+
+            )
+
+        )
+
+    """).substitute({'timespan': str(minutesSpent)+'m'}))[1]
+
+
+
+    workload_total_network_in = prom.GetInstantValue(Template("""
+
+        scalar(
+
+            sum(
+
+                increase(container_network_io_in_total{container_label_saasi_group=~\"workload\"}[$timespan])
+
+            )
+
+        )
+
+    """).substitute({'timespan': str(minutesSpent)+'m'}))[1]
+
+
+
+    workload_total_network_out = prom.GetInstantValue(Template("""
+
+        scalar(
+
+            sum(
+
+                increase(container_network_io_out_total{container_label_saasi_group=~\"workload\"}[$timespan])
+
+            )
+
+        )
+
+    """).substitute({'timespan': str(minutesSpent)+'m'}))[1]
+
+
+
+    controller_total_network_in = prom.GetInstantValue(Template("""
+
+        scalar(
+
+            sum(
+
+                increase(container_network_io_in_total{container_label_saasi_group=~\"controller\"}[$timespan])
+
+            )
+
+        )
+
+    """).substitute({'timespan': str(minutesSpent)+'m'}))[1]
+
+
+
+    controller_total_network_out = prom.GetInstantValue(Template("""
+
+        scalar(
+
+            sum(
+
+                increase(container_network_io_out_total{container_label_saasi_group=~\"controller\"}[$timespan])
+
+            )
+
+        )
+
+    """).substitute({'timespan': str(minutesSpent)+'m'}))[1]
+
+
+
+    business_requests_total = elst.GetCount("container_name: *business** AND log: *finished* AND log: Transcation")
+
+    business_violation_total = elst.GetCount("container_name: *business** AND log: *violation* AND log: Transcation")
+
+
+
+
+
+    return {
+
+        'MaxScale': max_scale,
+
+        'AvgScale': avg_scale,
+
+        'CpuAverage': avg_cpu_per_container_per_microservice,
+
+        'MemAverage': avg_mem_per_container_per_microservice,
+
+        'NetInAverage': avg_network_in_per_container_per_microservice,
+
+        'NetOutAverage': avg_network_out_per_container_per_microservice,
+
+        'WorkloadTotalCpu': workload_total_avg_cpu,
+
+        'WorkloadTotalMemory': workload_total_avg_mem,
+
+        'ControllerTotalCpu': controller_total_avg_cpu,
+
+        'ControllerTotalMemory': controller_total_avg_mem,
+
+        'WorkloadNetInTotal': workload_total_network_in,
+
+        'WorkloadNetOutTotal': workload_total_network_out,
+
+        'ControllerNetInTotal': controller_total_network_in,
+
+        'ControllerNetOutTotal': controller_total_network_out,
+
+        'TotalRequests': business_requests_total,
+
+        'TotalViolations': business_violation_total
+
+    }
+
+
+
+
+
+
+
+def collect_data_eval3(minutesSpent):
+
+    # COST
+
+    avg_scale = {}
+
+    max_scale = {}
+
+    for service in ['business_microservice', 'io_microservice', 'cpu_microservice', 'memory_microservice']:
+
+        avg_scale[service] = prom.GetInstantValue(Template(AVG_SCALE_MICROSERVICE).substitute({'msname': service,'timespan': str(minutesSpent)+'m'}))[1]
+
+        max_scale[service] = prom.GetInstantValue(Template(MAX_SCALE_MICROSERVICE).substitute({'msname': service, 'timespan': str(minutesSpent)+'m'}))[1]
+
+
+
+    # UTILISATION
+
+    avg_cpu_per_container_per_microservice = {}
+
+    avg_mem_per_container_per_microservice = {}
+
+    avg_network_in_per_container_per_microservice = {}
+
+    avg_network_out_per_container_per_microservice = {}
+
+
+
+    for service in ['business_microservice', 'io_microservice', 'cpu_microservice', 'memory_microservice']:
+
+        avg_cpu_per_container_per_microservice[service] = prom.GetInstantValue(Template(AVG_CPU).substitute({'msname': service, 'timespan': str(minutesSpent)+'m'}))[1]
+
+        avg_mem_per_container_per_microservice[service] = prom.GetInstantValue(Template(AVG_MEM).substitute({'msname': service, 'timespan': str(minutesSpent)+'m'}))[1]
+
+        avg_network_in_per_container_per_microservice[service] = prom.GetInstantValue(Template(AVG_NET_IN).substitute({'msname': service, 'timespan': str(minutesSpent)+'m'}))[1]
+
+        avg_network_out_per_container_per_microservice[service] = prom.GetInstantValue(Template(AVG_NET_OUT).substitute({'msname': service, 'timespan': str(minutesSpent)+'m'}))[1]
+
+
+
+    # OVERHEAD
+
+    workload_total_avg_cpu = prom.GetInstantValue(Template("""
+
+        scalar(
+
+            sum(
+
+                avg_over_time(container_cpu_total{container_label_saasi_group=~\"workload\"}[$timespan])
+
+            )
+
+        )
+
+    """).substitute({'timespan': str(minutesSpent)+'m'}))[1]
+
+
+
+    controller_total_avg_cpu = prom.GetInstantValue(Template("""
+
+        scalar(
+
+            sum(
+
+                avg_over_time(container_cpu_total{container_label_saasi_group=~\"controller\"}[$timespan])
+
+            )
+
+        )
+
+    """).substitute({'timespan': str(minutesSpent)+'m'}))[1]
+
+
+
+    workload_total_avg_mem = prom.GetInstantValue(Template("""
+
+        scalar(
+
+            sum(
+
+                avg_over_time(container_memory_total{container_label_saasi_group=~\"workload\"}[$timespan])
+
+            )
+
+        )
+
+    """).substitute({'timespan': str(minutesSpent)+'m'}))[1]
+
+
+
+    controller_total_avg_mem = prom.GetInstantValue(Template("""
+
+        scalar(
+
+            sum(
+
+                avg_over_time(container_memory_total{container_label_saasi_group=~\"controller\"}[$timespan])
+
+            )
+
+        )
+
+    """).substitute({'timespan': str(minutesSpent)+'m'}))[1]
+
+
+
+    workload_total_network_in = prom.GetInstantValue(Template("""
+
+        scalar(
+
+            sum(
+
+                increase(container_network_io_in_total{container_label_saasi_group=~\"workload\"}[$timespan])
+
+            )
+
+        )
+
+    """).substitute({'timespan': str(minutesSpent)+'m'}))[1]
+
+
+
+    workload_total_network_out = prom.GetInstantValue(Template("""
+
+        scalar(
+
+            sum(
+
+                increase(container_network_io_out_total{container_label_saasi_group=~\"workload\"}[$timespan])
+
+            )
+
+        )
+
+    """).substitute({'timespan': str(minutesSpent)+'m'}))[1]
+
+
+
+    controller_total_network_in = prom.GetInstantValue(Template("""
+
+        scalar(
+
+            sum(
+
+                increase(container_network_io_in_total{container_label_saasi_group=~\"controller\"}[$timespan])
+
+            )
+
+        )
+
+    """).substitute({'timespan': str(minutesSpent)+'m'}))[1]
+
+
+
+    controller_total_network_out = prom.GetInstantValue(Template("""
+
+        scalar(
+
+            sum(
+
+                increase(container_network_io_out_total{container_label_saasi_group=~\"controller\"}[$timespan])
+
+            )
+
+        )
+
+    """).substitute({'timespan': str(minutesSpent)+'m'}))[1]
+
+
+
+    business_requests_total = elst.GetCount("container_name: *business** AND log: *finished* AND log: Transcation")
+
+    business_violation_total = elst.GetCount("container_name: *business** AND log: *violation* AND log: Transcation")
+
+
+
+
+
+    return {
+
+        'MaxScale': max_scale,
+
+        'AvgScale': avg_scale,
+
+        'CpuAverage': avg_cpu_per_container_per_microservice,
+
+        'MemAverage': avg_mem_per_container_per_microservice,
+
+        'NetInAverage': avg_network_in_per_container_per_microservice,
+
+        'NetOutAverage': avg_network_out_per_container_per_microservice,
+
+        'WorkloadTotalCpu': workload_total_avg_cpu,
+
+        'WorkloadTotalMemory': workload_total_avg_mem,
+
+        'ControllerTotalCpu': controller_total_avg_cpu,
+
+        'ControllerTotalMemory': controller_total_avg_mem,
+
+        'WorkloadNetInTotal': workload_total_network_in,
+
+        'WorkloadNetOutTotal': workload_total_network_out,
+
+        'ControllerNetInTotal': controller_total_network_in,
+
+        'ControllerNetOutTotal': controller_total_network_out,
+
+        'TotalRequests': business_requests_total,
+
+        'TotalViolations': business_violation_total
+
+    }
