@@ -66,6 +66,7 @@ Generate SSH key pair on `regserv` and upload the public key to all other VMs.
 
    For example, the run Evaluation 2 (Uniform microservices) with two test cases `{Users = 10, Requests = 300}` and `{Users = 25, Requests = 750}`, run:
 
+
    ```
    cd saasi-experiment/automation
    fab clean_stack
