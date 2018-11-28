@@ -28,10 +28,10 @@ env.password = 'a1cf@f627'
 # }
 
 env.roledefs = {
-    'manager': ['manager-01','manager-02'],
-    'othermanagers': ['manager-02'],
+    'manager': ['manager-01'],
+    'othermanagers': ['manager-01'],
     'worker': [
-        'worker-01'
+        'manager-02'
     ],
     'loadgen': ['regserv']
 }
