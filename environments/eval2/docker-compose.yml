@@ -21,10 +21,10 @@ services:
         traefik.port: 80
         traefik.frontend.rule: "Query: operationId={operationId:[0-1]+}"
         traefik.enable: "true"
-#        traefik.backend.circuitbreaker.expression: "ResponseCodeRatio(400, 600, 0, 600)>0.1"
+        traefik.backend.circuitbreaker.expression: "ResponseCodeRatio(400, 600, 0, 600)>0.1"
         traefik.backend.healthcheck.path: "/api/status"
-#        traefik.backend.healthcheck.interval: "1s"
-#        traefik.backend.healthcheck.port: "80"
+        traefik.backend.healthcheck.interval: "1s"
+        traefik.backend.healthcheck.port: "80"
       replicas: 1
       placement:
         constraints: [node.role != manager]
@@ -109,10 +109,10 @@ services:
         traefik.port: 80
         traefik.frontend.rule: "Query: operationId={operationId:[4-5]+}"
         traefik.enable: "true"
-#        traefik.backend.circuitbreaker.expression: "ResponseCodeRatio(400, 600, 0, 600)>0.1"
+        traefik.backend.circuitbreaker.expression: "ResponseCodeRatio(400, 600, 0, 600)>0.1"
         traefik.backend.healthcheck.path: "/api/status"
-#        traefik.backend.healthcheck.interval: "1s"
-#        traefik.backend.healthcheck.port: "80"
+        traefik.backend.healthcheck.interval: "1s"
+        traefik.backend.healthcheck.port: "80"
       replicas: 1
       placement:
         constraints: [node.role != manager]
