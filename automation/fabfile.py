@@ -28,8 +28,8 @@ env.password = 'a1cf@f627'
 # }
 
 env.roledefs = {
-    'manager': ['manager-01','manager-02'],
-    'othermanagers': ['manager-01','manager-02'],
+    'manager': ['manager-01'],
+    'othermanagers': ['manager-01'],
     'worker': [
         'worker-01'
     ],
@@ -383,8 +383,8 @@ def run_eval2(users='10',reqs='20'):
 
     execute(export_data_eval2, str(minutesSpent)+'m', outputPath)
     
-    execute(clean_stack)
-    execute(restart_cluster)
+    #execute(clean_stack)
+    #execute(restart_cluster)
 
 def run_eval3(users='10',reqs='20'):
     requestsInt = int(reqs)
