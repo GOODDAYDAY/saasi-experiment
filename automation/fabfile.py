@@ -371,7 +371,7 @@ def run_eval2(users='10',reqs='20'):
 
     endTime = datetime.now()
     timeSpent = endTime - startTime
-    minutesSpent = int(math.ceil(timeSpent.seconds/60.0))
+    minutesSpent = int(math.ceil(timeSpent.seconds/60.0)) * 60
     print("From "+str(startTime)+' to '+str(endTime)+', thats '+str(minutesSpent)+' minutes.')
     # collect data
     result = collect_data_eval2(minutesSpent) # same as 3
