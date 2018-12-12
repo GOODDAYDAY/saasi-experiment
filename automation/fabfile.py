@@ -12,7 +12,7 @@ import os
 # from 
 # set_trace() 
 OUTPUT_PATH = '~/saasi-data/users-$users-req-$requests-$ts-$type'
-
+OUTPUT_PATH2 = '~/saasi-data/test-start-$start'
 # env.user = 'root'
 # set password
 env.user = 'webdep'
@@ -329,6 +329,24 @@ def mkdir(path):
         else:
                 print("---  There is this folder!  ---")
 
+def output_data(time_start):
+    outputPath = Template(OUTPUT_PATH2).substitute({"start" : time_start})
+    local("mkdir "+outputPath)
+    startTime = time_start
+    endTime = datetime.now()
+    timeSpent = endTime - startTime
+    minutesSpent = int(math.ceil(timeSpent.seconds/60.0))
+    print("From "+str(startTime)+' to '+str(endTime)+', thats '+str(minutesSpent)+' minutes.')
+    # collect data
+    result = collect_data_eval2(minutesSpent) # same as 3
+
+    #print(result)
+    mkdir(outputPath)
+    with open(outputPath+'/data.json', 'w') as outfile:
+        json.dump(result, outfile, sort_keys=True, indent=4)
+
+    execute(export_data_eval2, str(minutesSpent)+'m', outputPath)
+
 def run_eval2(users='10',reqs='20'):
     #from 
     requestsInt = int(reqs)
@@ -371,7 +389,7 @@ def run_eval2(users='10',reqs='20'):
 
     endTime = datetime.now()
     timeSpent = endTime - startTime
-    minutesSpent = int(math.ceil(timeSpent.seconds/60.0)) * 60
+    minutesSpent = int(math.ceil(timeSpent.seconds/60.0))
     print("From "+str(startTime)+' to '+str(endTime)+', thats '+str(minutesSpent)+' minutes.')
     # collect data
     result = collect_data_eval2(minutesSpent) # same as 3

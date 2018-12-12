@@ -27,4 +27,4 @@ $STYX -d $TIME_SPAN --prometheus http://manager-01:9090 'avg(rate(container_fs_w
 echo "Step5"
 echo "Stop scrach csv from promethus"
 
-docker run --rm -ti --net=host taskrabbit/elasticsearch-dump --input=http://localhost:9200/fluentd-*  --output=$ --type=data | gzip > $OUTPUT_DIR/logs.json.gz
+#docker run --rm -ti --net=host taskrabbit/elasticsearch-dump --input=http://localhost:9200/fluentd-*  --output=$ --type=data | gzip > $OUTPUT_DIR/logs.json.gz
