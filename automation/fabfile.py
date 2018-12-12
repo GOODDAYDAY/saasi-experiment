@@ -332,7 +332,7 @@ def mkdir(path):
 def output_data(time_start):
     outputPath = Template(OUTPUT_PATH2).substitute({"start" : time_start})
     local("mkdir "+outputPath)
-    startTime = time_start
+    startTime = datetime.fromtimestamp(time_start)
     endTime = datetime.now()
     timeSpent = endTime - startTime
     minutesSpent = int(math.ceil(timeSpent.seconds/60.0))
