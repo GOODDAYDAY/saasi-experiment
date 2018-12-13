@@ -12,7 +12,7 @@ import os
 # from 
 # set_trace() 
 OUTPUT_PATH = '~/saasi-data/users-$users-req-$requests-$ts-$type'
-OUTPUT_PATH2 = '~/saasi-data/test-start-$start'
+OUTPUT_PATH2 = '/home/webdep/saasi-data/test-start-$start'
 # env.user = 'root'
 # set password
 env.user = 'webdep'
@@ -340,7 +340,7 @@ def output_data(time_start):
     # collect data
     result = collect_data_eval2(minutesSpent) # same as 3
 
-    #print(result)
+    print(result)
     mkdir(outputPath)
     with open(outputPath+'/data.json', 'w') as outfile:
         json.dump(result, outfile, sort_keys=True, indent=4)
